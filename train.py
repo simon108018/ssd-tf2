@@ -1,10 +1,13 @@
 from functools import partial
 
+import os
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow.keras.callbacks import (EarlyStopping, ReduceLROnPlateau,
                                         TensorBoard)
 from tensorflow.keras.optimizers import Adam
+from tensorflow_addons.optimizers import RectifiedAdam
 from tqdm import tqdm
 
 from nets.ssd import SSD300
@@ -12,6 +15,7 @@ from nets.ssd_training import (Generator, LossHistory, ModelCheckpoint,
                                MultiboxLoss)
 from utils.anchors import get_anchors
 from utils.utils import BBoxUtility
+from datetime import datetime
 
 
 # 防止bug
@@ -75,7 +79,18 @@ def fit_one_epoch(net, multiloss, optimizer, epoch, epoch_size, epoch_size_val, 
     print('\nEpoch:'+ str(epoch+1) + '/' + str(Epoch))
     print('Total Loss: %.4f || Val Loss: %.4f ' % (total_loss/(epoch_size+1),val_loss/(epoch_size_val+1)))
     net.save_weights('logs/Epoch%d-Total_Loss%.4f-Val_Loss%.4f.h5'%((epoch+1),total_loss/(epoch_size+1),val_loss/(epoch_size_val+1)))
-      
+
+def new_log(logdir):
+    list_ = os.listdir(logdir)
+    list_.sort(key=lambda fn: os.path.getmtime(logdir + '/' + fn))
+    list_ = [l for l in list_ if '.h5' in l]
+    # 获取文件所在目录
+    if list_:
+        newlog = os.path.join(logdir, list_[-1])
+    else:
+        newlog = None
+    return newlog
+
 gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
@@ -85,8 +100,14 @@ for gpu in gpus:
 #   https://www.bilibili.com/video/BV1zE411u7Vw
 #----------------------------------------------------#
 if __name__ == "__main__":
-    log_dir = "logs/"
-    annotation_path = '2007_train.txt'
+    backbone = 'resnet50'
+    annotation_path = '2012_train.txt'
+
+    if backbone.lower() == 'resnet18':
+        log_dir = "logs18/"
+    elif backbone.lower() == 'resnet50':
+        log_dir = "logs50/"
+
     #----------------------------------------------------#
     #   是否使用eager模式训练
     #----------------------------------------------------#
@@ -117,14 +138,15 @@ if __name__ == "__main__":
     priors = get_anchors((input_shape[0], input_shape[1]), anchors_size)
     bbox_util = BBoxUtility(NUM_CLASSES, priors)
 
-    model = SSD300(input_shape, NUM_CLASSES, anchors_size)
+    model = SSD300(input_shape, NUM_CLASSES, anchors_size, backbone)
     #------------------------------------------------------#
     #   权值文件请看README，百度网盘下载
     #   训练自己的数据集时提示维度不匹配正常
     #   预测的东西都不一样了自然维度不匹配
     #------------------------------------------------------#
-    model_path = 'model_data/ssd_weights.h5'
-    model.load_weights(model_path, by_name=True, skip_mismatch=True)
+    model_path = new_log(log_dir)
+    if model_path:
+        model.load_weights(model_path, by_name=True, skip_mismatch=True)
 
     #-------------------------------------------------------------------------------#
     #   训练参数的设置
@@ -133,7 +155,7 @@ if __name__ == "__main__":
     #   reduce_lr用于设置学习率下降的方式
     #   early_stopping用于设定早停，val_loss多次不下降自动结束训练，表示模型基本收敛
     #-------------------------------------------------------------------------------#
-    logging = TensorBoard(log_dir=log_dir)
+    logging = TensorBoard(log_dir=log_dir + datetime.now().strftime("%Y%m%d-%H%M%S"), profile_batch=(2,5))
     checkpoint = ModelCheckpoint(log_dir + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.h5',
         monitor='val_loss', save_weights_only=True, save_best_only=False, period=1)
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
@@ -163,63 +185,68 @@ if __name__ == "__main__":
     #   Epoch总训练世代
     #   提示OOM或者显存不足请调小Batch_size
     #------------------------------------------------------#
-    for i in range(21):
-        model.layers[i].trainable = False
-    if True:
-        Init_epoch          = 0
-        Freeze_epoch        = 50
-        Batch_size          = 16
-        learning_rate_base  = 5e-4
+    # for i in range(175):
+    #     model.layers[i].trainable = False
+    # if True:
+    #     Init_epoch          = 0
+    #     Freeze_epoch        = 50
+    #     Batch_size          = 64
+    #     learning_rate_base  = 5e-4
+    #
+    #     epoch_size          = num_train // Batch_size
+    #     epoch_size_val      = num_val // Batch_size
+    #
+    #     if epoch_size == 0 or epoch_size_val == 0:
+    #         raise ValueError("数据集过小，无法进行训练，请扩充数据集。")
+    #
+    #     print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, Batch_size))
+    #     if eager:
+    #         generator = Generator(bbox_util, Batch_size, lines[:num_train], lines[num_train:],
+    #                     (input_shape[0], input_shape[1]),NUM_CLASSES)
+    #
+    #         gen = tf.data.Dataset.from_generator(partial(generator.generate, train = True), (tf.float32, tf.float32))
+    #         gen_val = tf.data.Dataset.from_generator(partial(generator.generate, train = False), (tf.float32, tf.float32))
+    #
+    #         gen = gen.shuffle(buffer_size=Batch_size).prefetch(buffer_size=Batch_size)
+    #         gen_val = gen_val.shuffle(buffer_size=Batch_size).prefetch(buffer_size=Batch_size)
+    #
+    #         lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    #             initial_learning_rate=learning_rate_base,
+    #             decay_steps=epoch_size,
+    #             decay_rate=0.95,
+    #             staircase=True
+    #         )
+    #
+    #         optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+    #         for epoch in range(Init_epoch, Freeze_epoch):
+    #             fit_one_epoch(model, multiloss, optimizer, epoch, epoch_size, epoch_size_val, gen, gen_val,
+    #                         Freeze_epoch, get_train_step_fn())
+    #
+    #     else:
+    #         gen = Generator(bbox_util, Batch_size, lines[:num_train], lines[num_train:],
+    #                         (input_shape[0], input_shape[1]),NUM_CLASSES)
+    #         optimizer = RectifiedAdam(learning_rate=learning_rate_base,
+    #                                   total_steps=num_train//Batch_size * Freeze_epoch,
+    #                                   warmup_proportion=0.1,
+    #                                   weight_decay=1e-4,
+    #                                   min_lr=learning_rate_base * 1e-2)
+    #         model.compile(optimizer=optimizer, loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=3.0).compute_loss)
+    #
+    #         model.fit(gen.generate(True),
+    #                 steps_per_epoch=epoch_size,
+    #                 validation_data=gen.generate(False),
+    #                 validation_steps=epoch_size_val,
+    #                 epochs=Freeze_epoch,
+    #                 initial_epoch=Init_epoch,
+    #                 callbacks=[logging, checkpoint, loss_history])
 
-        epoch_size          = num_train // Batch_size
-        epoch_size_val      = num_val // Batch_size
-
-        if epoch_size == 0 or epoch_size_val == 0:
-            raise ValueError("数据集过小，无法进行训练，请扩充数据集。")
-
-        print('Train on {} samples, val on {} samples, with batch size {}.'.format(num_train, num_val, Batch_size))
-        if eager:
-            generator = Generator(bbox_util, Batch_size, lines[:num_train], lines[num_train:],
-                        (input_shape[0], input_shape[1]),NUM_CLASSES)
-
-            gen = tf.data.Dataset.from_generator(partial(generator.generate, train = True), (tf.float32, tf.float32))
-            gen_val = tf.data.Dataset.from_generator(partial(generator.generate, train = False), (tf.float32, tf.float32))
-
-            gen = gen.shuffle(buffer_size=Batch_size).prefetch(buffer_size=Batch_size)
-            gen_val = gen_val.shuffle(buffer_size=Batch_size).prefetch(buffer_size=Batch_size)
-
-            lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-                initial_learning_rate=learning_rate_base,
-                decay_steps=epoch_size,
-                decay_rate=0.95,
-                staircase=True
-            )
-
-            optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-            for epoch in range(Init_epoch, Freeze_epoch):
-                fit_one_epoch(model, multiloss, optimizer, epoch, epoch_size, epoch_size_val, gen, gen_val, 
-                            Freeze_epoch, get_train_step_fn())
-            
-        else:
-            gen = Generator(bbox_util, Batch_size, lines[:num_train], lines[num_train:],
-                        (input_shape[0], input_shape[1]),NUM_CLASSES)
-            model.compile(optimizer=Adam(lr=learning_rate_base),loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=3.0).compute_loss)
-            
-            model.fit(gen.generate(True), 
-                    steps_per_epoch=epoch_size,
-                    validation_data=gen.generate(False),
-                    validation_steps=epoch_size_val,
-                    epochs=Freeze_epoch, 
-                    initial_epoch=Init_epoch,
-                    callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history])
-
-    for i in range(21):
+    for i in range(175):
         model.layers[i].trainable = True
     if True:
         Freeze_epoch        = 50
-        Epoch               = 100
-        Batch_size          = 8
-        learning_rate_base  = 1e-4
+        Epoch               = 250
+        Batch_size          = 32
+        learning_rate_base  = 5e-4
         
         epoch_size          = num_train // Batch_size
         epoch_size_val      = num_val // Batch_size
@@ -231,7 +258,7 @@ if __name__ == "__main__":
         if eager:
 
             generator =Generator(bbox_util, Batch_size, lines[:num_train], lines[num_train:],
-                        (input_shape[0], input_shape[1]),NUM_CLASSES)
+                                 (input_shape[0], input_shape[1]), NUM_CLASSES)
 
             gen = tf.data.Dataset.from_generator(partial(generator.generate, train = True), (tf.float32, tf.float32))
             gen_val = tf.data.Dataset.from_generator(partial(generator.generate, train = False), (tf.float32, tf.float32))
@@ -255,8 +282,13 @@ if __name__ == "__main__":
 
         else:
             gen = Generator(bbox_util, Batch_size, lines[:num_train], lines[num_train:],
-                        (input_shape[0], input_shape[1]),NUM_CLASSES)
-            model.compile(optimizer=Adam(lr=learning_rate_base),loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=3.0).compute_loss)
+                            (input_shape[0], input_shape[1]),NUM_CLASSES)
+            optimizer = RectifiedAdam(learning_rate=learning_rate_base,
+                                      total_steps=num_train//Batch_size * (Epoch - Freeze_epoch),
+                                      warmup_proportion=0.1,
+                                      weight_decay=1e-4,
+                                      min_lr=learning_rate_base * 1e-2)
+            model.compile(optimizer=optimizer, loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=3.0).compute_loss)
 
             model.fit(gen.generate(True), 
                     steps_per_epoch=epoch_size,
@@ -264,4 +296,4 @@ if __name__ == "__main__":
                     validation_steps=epoch_size_val,
                     epochs=Epoch, 
                     initial_epoch=Freeze_epoch,
-                    callbacks=[logging, checkpoint, reduce_lr, early_stopping, loss_history])
+                    callbacks=[logging, checkpoint, loss_history])

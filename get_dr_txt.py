@@ -34,7 +34,7 @@ class mAP_SSD(SSD):
     #   检测图片
     #---------------------------------------------------#
     def detect_image(self,image_id,image):
-        self.confidence = 0.01
+        self.confidence = 0.2
         f = open("./input/detection-results/"+image_id+".txt","w") 
         image_shape = np.array(np.shape(image)[0:2])
         #---------------------------------------------------------#
@@ -97,7 +97,7 @@ class mAP_SSD(SSD):
         return 
 
 ssd = mAP_SSD()
-image_ids = open('VOCdevkit/VOC2007/ImageSets/Main/test.txt').read().strip().split()
+image_ids = open('VOCdevkit/VOC2012/ImageSets/Main/train.txt').read().strip().split()
 
 if not os.path.exists("./input"):
     os.makedirs("./input")
@@ -107,11 +107,11 @@ if not os.path.exists("./input/images-optional"):
     os.makedirs("./input/images-optional")
 
 for image_id in tqdm(image_ids):
-    image_path = "./VOCdevkit/VOC2007/JPEGImages/"+image_id+".jpg"
+    image_path = "./VOCdevkit/VOC2012/JPEGImages/"+image_id+".jpg"
     image = Image.open(image_path)
     # 开启后在之后计算mAP可以可视化
-    # image.save("./input/images-optional/"+image_id+".jpg")
-    ssd.detect_image(image_id,image)
+    image.save("./input/images-optional/"+image_id+".jpg")
+    ssd.detect_image(image_id, image)
     
 
 print("Conversion completed!")

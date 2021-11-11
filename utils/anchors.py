@@ -132,47 +132,47 @@ def get_anchors(img_size = (300,300), anchors_size=[30,60,111,162,213,264,315]):
     net = {} 
     priorbox = PriorBox(img_size, anchors_size[0],max_size = anchors_size[1], aspect_ratios=[2],
                         variances=[0.1, 0.1, 0.2, 0.2],
-                        name='conv4_3_norm_mbox_priorbox')
-    net['conv4_3_norm_mbox_priorbox'] = priorbox.call([features_map_length[0],features_map_length[0]])
+                        name='stage2_b_norm_mbox_priorbox')
+    net['stage2_b_norm_mbox_priorbox'] = priorbox.call([features_map_length[0],features_map_length[0]])
 
 
     priorbox = PriorBox(img_size, anchors_size[1], max_size=anchors_size[2], aspect_ratios=[2, 3],
                         variances=[0.1, 0.1, 0.2, 0.2],
-                        name='fc7_mbox_priorbox')
-    net['fc7_mbox_priorbox'] = priorbox.call([features_map_length[1],features_map_length[1]])
+                        name='stage3_b_mbox_priorbox')
+    net['stage3_b_mbox_priorbox'] = priorbox.call([features_map_length[1],features_map_length[1]])
 
 
     priorbox = PriorBox(img_size, anchors_size[2], max_size=anchors_size[3], aspect_ratios=[2, 3],
                         variances=[0.1, 0.1, 0.2, 0.2],
-                        name='conv6_2_mbox_priorbox')
-    net['conv6_2_mbox_priorbox'] = priorbox.call([features_map_length[2],features_map_length[2]])
+                        name='stage4_b_mbox_priorbox')
+    net['stage4_b_mbox_priorbox'] = priorbox.call([features_map_length[2],features_map_length[2]])
 
 
     priorbox = PriorBox(img_size, anchors_size[3], max_size=anchors_size[4], aspect_ratios=[2, 3],
                         variances=[0.1, 0.1, 0.2, 0.2],
-                        name='conv7_2_mbox_priorbox')
-    net['conv7_2_mbox_priorbox'] = priorbox.call([features_map_length[3],features_map_length[3]])
+                        name='stage5_b_mbox_priorbox')
+    net['stage5_b_mbox_priorbox'] = priorbox.call([features_map_length[3],features_map_length[3]])
 
 
     priorbox = PriorBox(img_size, anchors_size[4], max_size=anchors_size[5], aspect_ratios=[2],
                         variances=[0.1, 0.1, 0.2, 0.2],
-                        name='conv8_2_mbox_priorbox')
-    net['conv8_2_mbox_priorbox'] = priorbox.call([features_map_length[4],features_map_length[4]])
+                        name='stage6_b_mbox_priorbox')
+    net['stage6_b_mbox_priorbox'] = priorbox.call([features_map_length[4],features_map_length[4]])
 
 
     priorbox = PriorBox(img_size, anchors_size[5], max_size=anchors_size[6], aspect_ratios=[2],
                         variances=[0.1, 0.1, 0.2, 0.2],
-                        name='pool6_mbox_priorbox')
+                        name='stage7_b_mbox_priorbox')
                         
 
-    net['pool6_mbox_priorbox'] = priorbox.call([features_map_length[5],features_map_length[5]])
+    net['stage7_b_mbox_priorbox'] = priorbox.call([features_map_length[5],features_map_length[5]])
 
-    net['mbox_priorbox'] = np.concatenate([net['conv4_3_norm_mbox_priorbox'],
-                                    net['fc7_mbox_priorbox'],
-                                    net['conv6_2_mbox_priorbox'],
-                                    net['conv7_2_mbox_priorbox'],
-                                    net['conv8_2_mbox_priorbox'],
-                                    net['pool6_mbox_priorbox']],
+    net['mbox_priorbox'] = np.concatenate([net['stage2_b_norm_mbox_priorbox'],
+                                    net['stage3_b_mbox_priorbox'],
+                                    net['stage4_b_mbox_priorbox'],
+                                    net['stage5_b_mbox_priorbox'],
+                                    net['stage6_b_mbox_priorbox'],
+                                    net['stage7_b_mbox_priorbox']],
                                     axis=0)
 
     return net['mbox_priorbox']

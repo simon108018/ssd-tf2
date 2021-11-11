@@ -20,7 +20,8 @@ from utils.utils import BBoxUtility, letterbox_image, ssd_correct_boxes
 #--------------------------------------------#
 class SSD(object):
     _defaults = {
-        "model_path"        : 'model_data/ssd_weights.h5',
+        "model_path"        : 'model_data/ssd_resnet50.h5',
+        "backbone"          : 'resnet18',
         "classes_path"      : 'model_data/voc_classes.txt',
         "input_shape"       : (300, 300, 3),
         "confidence"        : 0.5,
@@ -74,8 +75,8 @@ class SSD(object):
         #-------------------------------#
         #   载入模型与权值
         #-------------------------------#
-        self.ssd_model = ssd.SSD300(self.input_shape, self.num_classes, anchors_size=self.anchors_size)
-        self.ssd_model.load_weights(self.model_path,by_name=True)
+        self.ssd_model = ssd.SSD300(self.input_shape, self.num_classes, anchors_size=self.anchors_size, backbone_name=self.backbone)
+        # self.ssd_model.load_weights(self.model_path,by_name=True)
 
         print('{} model, anchors, and classes loaded.'.format(model_path))
 

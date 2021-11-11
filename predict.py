@@ -4,7 +4,7 @@
 #   整合到了一个py文件中，通过指定mode进行模式的修改。
 #----------------------------------------------------#
 import time
-
+import os
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -12,9 +12,13 @@ from PIL import Image
 
 from ssd import SSD
 
-gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
-for gpu in gpus:
-    tf.config.experimental.set_memory_growth(gpu, True)
+device_type = 'GPU'
+if device_type=='GPU':
+    gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+else:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 if __name__ == "__main__":
     ssd = SSD()
@@ -24,7 +28,7 @@ if __name__ == "__main__":
     #   'video'表示视频检测
     #   'fps'表示测试fps
     #-------------------------------------------------------------------------#
-    mode = "predict"
+    mode = "fps"
     #-------------------------------------------------------------------------#
     #   video_path用于指定视频的路径，当video_path=0时表示检测摄像头
     #   video_save_path表示视频保存的路径，当video_save_path=""时表示不保存
@@ -96,9 +100,10 @@ if __name__ == "__main__":
         cv2.destroyAllWindows()
 
     elif mode == "fps":
-        test_interval = 100
+        test_interval = 1000
         img = Image.open('img/street.jpg')
         tact_time = ssd.get_FPS(img, test_interval)
         print(str(tact_time) + ' seconds, ' + str(1/tact_time) + 'FPS, @batch_size 1')
+
     else:
         raise AssertionError("Please specify the correct mode: 'predict', 'video' or 'fps'.")
